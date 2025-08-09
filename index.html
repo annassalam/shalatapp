@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sholat & Al-Qur'an — Starter</title>
+
+  <!-- Tailwind CDN (Play) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* small custom */
+    .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(6px); }
+    .arab { font-family: "Scheherazade New", "Amiri", serif; font-size: 1.25rem; }
+    /* qibla arrow */
+    .compass { width:120px;height:120px;border-radius:9999px;border:4px solid rgba(255,255,255,0.06); display:flex;align-items:center;justify-content:center;position:relative;}
+    .arrow { width:8px;height:60px;background:linear-gradient(#ef4444,#dc2626); border-radius:6px; transform-origin:50% 90%; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-slate-100">
+  <div class="container mx-auto p-4 max-w-6xl">
+  <!-- HEADER -->
+  <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <h1 class="text-2xl font-semibold text-center sm:text-left">🕋 Sholat & Al-Qur'an</h1>
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+      <input id="cityInput" placeholder="Cari kota (fallback)"
+        class="px-3 py-2 rounded bg-slate-700/40 w-full sm:w-auto" />
+      <button id="useCityBtn"
+        class="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto">Gunakan</button>
+      
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Prayer Card -->
+    <section class="glass p-4 rounded-lg lg:col-span-2">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
+        <div>
+          <h2 class="text-lg sm:text-xl font-semibold">Waktu Sholat • <span id="locName">Mendapatkan lokasi...</span></h2>
+          <p class="text-sm text-slate-300" id="todayDate"></p>
+        </div>
+        <div class="text-right">
+          <p class="text-sm">Next: <span id="nextPrayerName">—</span></p>
+          <p class="text-lg font-mono" id="nextPrayerCountdown">--:--:--</p>
+        </div>
+      </div>
+
+      <div id="prayerList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+        <!-- times injected -->
+      </div>
+
+      <div class="mt-4">
+        <h3 class="text-sm text-slate-300 mb-2">Kalender Bulanan</h3>
+        <div id="monthCalendar" class="overflow-auto max-h-36 p-2 bg-slate-900/40 rounded"></div>
+      </div>
+    </section>
+
+    <!-- Right column: Qibla + Quran -->
+    <aside class="space-y-4">
+      <div class="glass p-4 rounded-lg flex flex-col items-center">
+        <h3 class="font-semibold mb-2">Arah Kiblat</h3>
+        <div class="compass mb-2" id="compass">
+          <div class="arrow" id="qiblaArrow"></div>
+          <div class="absolute bottom-2 text-xs text-slate-300">Tap untuk refresh</div>
+        </div>
+        <p class="text-sm text-slate-300" id="qiblaDeg">—° dari utara</p>
+      </div>
+
+      <div class="glass p-4 rounded-lg">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+          <h3 class="font-semibold">Al-Qur'an</h3>
+          <input id="surahSearch" placeholder="Cari surat..."
+            class="px-2 py-1 rounded bg-slate-700/40 text-sm w-full sm:w-auto" />
+        </div>
+        <div id="surahList"
+          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-auto">
+          <!-- surah buttons -->
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modal / Reader -->
+  <div id="readerModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 rounded-lg w-full max-w-3xl p-4 max-h-[90vh] overflow-auto">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
+        <h3 id="readerTitle" class="text-lg font-semibold">Surah</h3>
+        <div class="flex items-center gap-2">
+          <button id="bookmarkBtn"
+            class="px-2 py-1 rounded bg-yellow-500 text-slate-900">Bookmark</button>
+          <button id="closeReader"
+            class="px-2 py-1 rounded bg-slate-700/40">Tutup</button>
+        </div>
+      </div>
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="w-full md:w-2/5 max-h-80 overflow-auto" id="ayahList"></div>
+        <div class="w-full md:w-3/5">
+          <div class="arab text-2xl mb-2" id="selectedAyahArabic">—</div>
+          <div class="text-slate-300 mb-4" id="selectedAyahTranslation">—</div>
+          <audio id="audioPlayer" controls class="w-full"></audio>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-6 text-xs text-slate-400 text-center sm:text-left">
+    APIs: AlAdhan (waktu/qibla) & AlQuran.cloud (text/audio).
+  </footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(registration => {
+        console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch(error => {
+        console.error('Service Worker registration failed:', error);
+      });
+  });
+}
+
+function loadMonthlyCalendar(city = "Jakarta", country = "Indonesia") {
+  const month = new Date().getMonth() + 1; // bulan sekarang
+  const year = new Date().getFullYear();
+
+  fetch(`https://api.aladhan.com/v1/calendarByCity?city=${city}&country=${country}&method=2&month=${month}&year=${year}`)
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("monthCalendar");
+      container.innerHTML = ""; // kosongkan dulu
+
+      data.data.forEach(day => {
+        const date = day.date.gregorian.date;
+        const fajr = day.timings.Fajr.split(" ")[0];
+        const maghrib = day.timings.Maghrib.split(" ")[0];
+
+        const row = document.createElement("div");
+        row.className = "flex justify-between border-b border-slate-700 py-1 text-sm";
+        row.innerHTML = `<span>${date}</span><span>Fajr: ${fajr} | Maghrib: ${maghrib}</span>`;
+        container.appendChild(row);
+      });
+    })
+    .catch(err => {
+      console.error("Gagal memuat kalender:", err);
+      document.getElementById("monthCalendar").innerHTML = "<p class='text-red-500'>Gagal memuat kalender</p>";
+    });
+}
+
+// jalankan setelah DOM siap
+document.addEventListener("DOMContentLoaded", () => {
+  loadMonthlyCalendar("Jakarta", "Indonesia");
+});
+
+</script>
+<script>
+/* -----------------------
+  Config & helpers
+   ----------------------- */
+const ALADHAN_BASE = 'https://api.aladhan.com/v1';
+const QURAN_BASE = 'https://api.alquran.cloud/v1';
+let state = {
+  lat: null, lon: null, city: null,
+  timings: null, nextPrayer: null,
+  surahs: [], currentSurah: null, currentAyahIndex: 0
+};
+
+function qs(id){ return document.getElementById(id); }
+function formatTime(t){ // input "HH:MM" -> "HH:MM"
+  if(!t) return '—';
+  return t;
+}
+function toLocalDateString(date){
+  return date.toLocaleString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+
+/* -----------------------
+  Prayer times (AlAdhan)
+   ----------------------- */
+async function getPrayerTimes(lat, lon) {
+  const url = `${ALADHAN_BASE}/timings?latitude=${lat}&longitude=${lon}&method=2`;
+  const res = await fetch(url);
+  const j = await res.json();
+  if(j.code===200) {
+    state.timings = j.data.timings;
+    state.meta = j.data.meta;
+    state.date = j.data.date;
+    renderTimings();
+    scheduleCountdown();
+    getMonthlyCalendar(lat, lon, new Date().getMonth()+1, new Date().getFullYear());
+  } else {
+    console.error('AlAdhan error', j);
+  }
+}
+
+async function getMonthlyCalendar(lat, lon, month, year){
+  try{
+    const url = `${ALADHAN_BASE}/calendar?latitude=${lat}&longitude=${lon}&method=2&month=${month}&year=${year}`;
+    const res = await fetch(url);
+    const j = await res.json();
+    if(j.code===200){
+      renderMonthCalendar(j.data);
+    }
+  }catch(e){console.error(e)}
+}
+
+function renderTimings(){
+  qs('locName').innerText = state.city || `${state.lat?.toFixed(3)}, ${state.lon?.toFixed(3)}`;
+  qs('todayDate').innerText = `${state.date?.gregorian?.date || ''} • Hijri: ${state.date?.hijri?.date || ''}`;
+  const container = qs('prayerList');
+  container.innerHTML = '';
+  const order = ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
+  order.forEach(k=>{
+    const t = state.timings[k];
+    const el = document.createElement('div');
+    el.className = 'p-3 bg-slate-800/40 rounded flex flex-col items-start';
+    el.innerHTML = `<div class="text-sm text-slate-300">${k}</div><div class="text-lg font-mono">${t}</div>`;
+    container.appendChild(el);
+  });
+}
+
+/* -----------------------
+  Countdown to next prayer
+   ----------------------- */
+function scheduleCountdown(){
+  clearInterval(state.countdownInterval);
+  updateNextPrayer();
+  state.countdownInterval = setInterval(()=> {
+    updateNextPrayer();
+  }, 1000);
+}
+
+function updateNextPrayer(){
+  if(!state.timings) return;
+  const now = new Date();
+  // build list of upcoming times (today)
+  const timingEntries = [];
+  ['Fajr','Dhuhr','Asr','Maghrib','Isha'].forEach(k=>{
+    const [hh,mm] = state.timings[k].split(':').map(Number);
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0);
+    timingEntries.push({name:k, time:dt});
+  });
+  // if passed all, use tomorrow's Fajr (approx add 1 day)
+  let next = timingEntries.find(t=>t.time>now);
+  if(!next){
+    // tomorrow's fajr: add 1 day and fetch tomorrow's timings later; here approximate by 24h add using today's fajr plus 24h
+    const fajr = timingEntries[0];
+    next = {name:'Fajr (besok)', time: new Date(fajr.time.getTime()+24*3600*1000)};
+  }
+  const diff = Math.max(0, Math.floor((next.time - now)/1000));
+  const hh = String(Math.floor(diff/3600)).padStart(2,'0');
+  const mm = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+  const ss = String(diff%60).padStart(2,'0');
+  qs('nextPrayerName').innerText = next.name;
+  qs('nextPrayerCountdown').innerText = `${hh}:${mm}:${ss}`;
+}
+
+/* -----------------------
+  Qibla direction (AlAdhan)
+   ----------------------- */
+async function getQibla(lat, lon){
+  try{
+    const url = `${ALADHAN_BASE}/qibla/${lat}/${lon}`;
+    const res = await fetch(url);
+    const j = await res.json();
+    if(j.code===200){
+      const bearing = j.data.direction;
+      qs('qiblaDeg').innerText = `${bearing}° dari utara`;
+      // rotate arrow: note arrow points up = 0deg (north), rotate by bearing
+      qs('qiblaArrow').style.transform = `rotate(${bearing}deg)`;
+    }
+  }catch(e){console.error(e)}
+}
+
+/* -----------------------
+  Quran: list surah & reader (AlQuran.cloud)
+   ----------------------- */
+async function loadSurahList(){
+  try{
+    const res = await fetch(`${QURAN_BASE}/surah`);
+    const j = await res.json();
+    if(j.code===200){
+      state.surahs = j.data; // array of surah metadata
+      renderSurahList(j.data);
+    }
+  }catch(e){console.error(e)}
+}
+
+function renderSurahList(list){
+  const container = qs('surahList');
+  container.innerHTML = '';
+  list.forEach(s=>{
+    const b = document.createElement('button');
+    b.className = 'p-2 bg-slate-800/30 rounded text-left text-sm';
+    b.innerHTML = `<div class="font-semibold">${s.number}. ${s.englishName}</div><div class="text-xs text-slate-400">${s.englishNameTranslation} • ${s.numberOfAyahs} ayat</div>`;
+    b.onclick = ()=> openSurah(s.number, s.englishName);
+    container.appendChild(b);
+  });
+}
+
+async function openSurah(num, name){
+  // fetch both Arabic (quran-uthmani) and translation id.indonesian (if available) and audio edition ar.alafasy
+  const editions = `editions/quran-uthmani,id.indonesian,ar.alafasy`;
+  const url = `${QURAN_BASE}/surah/${num}/${editions}`;
+  try{
+    const res = await fetch(url);
+    const j = await res.json();
+    // response: array of editions -> find Arabic, translation, audio
+    // For simplicity, combine by index (they return editions in order requested)
+    if(j.code===200 && Array.isArray(j.data)){
+      const arab = j.data.find(e=>e.edition?.identifier === 'quran-uthmani') || j.data[0];
+      const trans = j.data.find(e=>e.edition?.language === 'id') || j.data.find(e=>e.edition?.identifier && e.edition?.identifier.includes('id'));
+      const audio = j.data.find(e=>e.edition?.format === 'audio' || (e.edition?.identifier && e.edition.identifier.includes('alafasy')));
+      // normalize ayahs array from one of them (they include ayahs)
+      const ayahs = arab.ayahs.map((a,i)=>({
+        number:a.number,
+        text:a.text,
+        translation: trans?.ayahs?.[i]?.text || '',
+        audio: audio?.ayahs?.[i]?.audio || audio?.ayahs?.[i]?.audio_secondary || null
+      }));
+      state.currentSurah = {num, name, ayahs};
+      showReader();
+    } else {
+      console.error('surah fetch no data', j);
+    }
+  }catch(e){console.error(e)}
+}
+
+function showReader(){
+  const modal = qs('readerModal');
+  modal.classList.remove('hidden');
+  renderAyahList();
+}
+
+function renderAyahList(){
+  const list = state.currentSurah.ayahs;
+  const container = qs('ayahList');
+  container.innerHTML = '';
+
+  list.forEach((a, idx)=>{
+    const el = document.createElement('div');
+    el.className = 'p-2 border-b border-slate-800/40 text-sm cursor-pointer';
+    el.innerHTML = `<div class="font-mono text-xs text-slate-400">(${idx+1})</div><div class="arab">${a.text}</div><div class="text-slate-300 text-sm">${a.translation}</div>`;
+    el.onclick = ()=> selectAyah(idx);
+    container.appendChild(el);
+  });
+  // init select first
+  selectAyah(0);
+
+//   listener autoplay
+  const menyalakanSuara = qs('audioPlayer');
+  menyalakanSuara.onended = () => {
+    const nextIndex = state.currentAyahIndex + 1;
+    if (nextIndex < state.currentSurah.ayahs.length){
+        selectAyah(nextIndex);
+    } else {
+        console.log('Surah selesai diputar.');
+    }
+  };
+}
+
+function selectAyah(idx){
+  const ay = state.currentSurah.ayahs[idx];
+  state.currentAyahIndex = idx;
+  qs('selectedAyahArabic').innerText = ay.text;
+  qs('selectedAyahTranslation').innerText = ay.translation || '—';
+  const audioPlayer = qs('audioPlayer');
+  if(ay.audio){
+    audioPlayer.src = ay.audio;
+    audioPlayer.play().catch(()=>{ /* autoplay may block */});
+  } else {
+    audioPlayer.src = '';
+  }
+  // highlight in list
+  Array.from(qs('ayahList').children).forEach((c,i)=> c.classList.toggle('bg-slate-700/30', i===idx));
+}
+
+/* -----------------------
+  UI bindings & init
+   ----------------------- */
+qs('closeReader').onclick = ()=> qs('readerModal').classList.add('hidden');
+qs('surahSearch').addEventListener('input', (e)=>{
+  const q = e.target.value.toLowerCase();
+  qs('surahList').querySelectorAll('button').forEach(btn=>{
+    btn.style.display = btn.innerText.toLowerCase().includes(q) ? 'block' : 'none';
+  });
+});
+qs('useCityBtn').onclick = async ()=>{
+  const city = qs('cityInput').value.trim();
+  if(!city) return alert('Masukkan nama kota.');
+  // geocode via AlAdhan endpoint (city->coords)
+  const geoUrl = `${ALADHAN_BASE}/timingsByCity?city=${encodeURIComponent(city)}&country=&method=2`;
+  try{
+    const r = await fetch(geoUrl);
+    const j = await r.json();
+    if(j.code===200){
+      // AlAdhan returns data and meta with timezone; but coordinates are in j.data.meta.latitude/j.data.meta.longitude? fallback
+      state.lat = j.data.meta.latitude || j.data.data?.latitude || state.lat;
+      state.lon = j.data.meta.longitude || j.data.data?.longitude || state.lon;
+      state.city = city;
+      getPrayerTimes(state.lat, state.lon);
+      getQibla(state.lat, state.lon);
+    } else {
+      alert('Kota tidak ditemukan oleh API.');
+    }
+  }catch(e){ alert('Gagal memanggil API geocoding.'); console.error(e) }
+};
+
+qs('compass').onclick = ()=> {
+  if(state.lat && state.lon) getQibla(state.lat, state.lon);
+};
+
+
+/* -----------------------
+  Startup: geolocation + load quran
+   ----------------------- */
+async function init(){
+  // load surah list asap
+  loadSurahList();
+
+  // try geolocation
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      state.lat = pos.coords.latitude;
+      state.lon = pos.coords.longitude;
+      // reverse geocode city via AlAdhan (endpoint timings returns meta with timezone and method)
+      state.city = 'Lokasi Anda';
+      await getPrayerTimes(state.lat, state.lon);
+      await getQibla(state.lat, state.lon);
+    }, async err=>{
+      console.warn('Geolocation denied or failed', err);
+      qs('locName').innerText = 'Lokasi tidak tersedia — gunakan kotamu';
+      // no coords: leave state null
+    }, {timeout:10000});
+  } else {
+    qs('locName').innerText = 'Browser tidak mendukung Geolocation';
+  }
+
+  // today's date
+  qs('todayDate').innerText = toLocalDateString(new Date());
+}
+
+init();
+</script>
+</body>
+</html>
